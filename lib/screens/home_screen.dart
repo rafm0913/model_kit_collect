@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/model_kit.dart';
+import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import 'add_edit_screen.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storage = StorageService();
+  final AuthService _auth = AuthService();
   List<ModelKit> _kits = [];
   bool _loading = true;
 
@@ -26,8 +29,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadKits() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     final kits = await _storage.loadModelKits();
+    if (!mounted) return;
     setState(() {
       _kits = kits;
       _loading = false;
@@ -41,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => const AddEditScreen(),
       ),
     );
-    if (result == true) _loadKits();
+    if (result == true && mounted) _loadKits();
   }
 
   Future<void> _navigateToEdit(ModelKit kit) async {
@@ -51,7 +56,15 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => AddEditScreen(modelKit: kit),
       ),
     );
-    if (result == true) _loadKits();
+    if (result == true && mounted) _loadKits();
+  }
+
+  Future<void> _signOut() async {
+    await _auth.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
   }
 
   Future<void> _deleteKit(ModelKit kit) async {
@@ -88,6 +101,13 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('模型收藏記錄'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
+            tooltip: '登出',
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
