@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "model_kit_collect (實體 iPhone)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "00008140-000A48CA0A53001C"
+    },
+    {
+      "name": "model_kit_collect (macOS 桌面)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "macos"
+    },
+    {
+      "name": "model_kit_collect (Chrome 網頁)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome"
+    },
+    {
+      "name": "model_kit_collect (iOS 模擬器)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "iPhone"
+    },
+    {
+      "name": "model_kit_collect (Android 模擬器)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "emulator-5554"
+    },
+    {
+      "name": "model_kit_collect (profile mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "deviceId": "macos"
+    },
+    {
+      "name": "model_kit_collect (release mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release",
+      "deviceId": "macos"
+    }
+  ]
+}
