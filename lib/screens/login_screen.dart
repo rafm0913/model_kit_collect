@@ -16,31 +16,22 @@ class LoginScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              Icon(
-                Icons.inventory_2,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              Image.asset('assets/logo.png', height: 350, fit: BoxFit.contain),
               const SizedBox(height: 24),
               Text(
                 '模型收藏記錄',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 '使用 Google 帳號登入以同步你的收藏',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
-              _GoogleSignInButton(
-                onPressed: () => _signInWithGoogle(context),
-              ),
+              _GoogleSignInButton(onPressed: () => _signInWithGoogle(context)),
               const SizedBox(height: 48),
             ],
           ),
@@ -59,9 +50,7 @@ class LoginScreen extends StatelessWidget {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (ctx) => const Center(child: CircularProgressIndicator()),
       );
 
       final user = await auth.signInWithGoogle();
@@ -71,14 +60,10 @@ class LoginScreen extends StatelessWidget {
 
       if (user != null) {
         navigator.pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('登入已取消')),
-        );
+        messenger.showSnackBar(const SnackBar(content: Text('登入已取消')));
       }
     } catch (e, stack) {
       if (!context.mounted) return;
@@ -110,9 +95,7 @@ class _GoogleSignInButton extends StatelessWidget {
         onPressed: onPressed,
         icon: const Icon(Icons.g_mobiledata, size: 28),
         label: const Text('使用 Google 登入'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black87,
-        ),
+        style: OutlinedButton.styleFrom(foregroundColor: Colors.black87),
       ),
     );
   }
