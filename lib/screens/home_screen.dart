@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/model_kit.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import 'add_edit_screen.dart';
@@ -80,9 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('刪除'),
           ),
         ],
@@ -99,8 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('模型收藏記錄'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text('模型收藏記錄', style: AppTypography.title.copyWith(color: AppColors.textPrimary)),
+        backgroundColor: AppColors.cardBackground,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -110,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _kits.isEmpty
               ? Center(
                   child: Column(
@@ -119,23 +119,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(
                         Icons.inventory_2_outlined,
                         size: 80,
-                        color: Colors.grey.shade400,
+                        color: AppColors.textMuted,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         '尚無記錄',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
-                        ),
+                        style: AppTypography.subtitle.copyWith(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         '點擊右下角 + 新增第一筆模型',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade500,
-                        ),
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
                       ),
                     ],
                   ),
@@ -154,8 +148,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _navigateToAdd,
+        backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add),
-        label: const Text('新增'),
+        label: Text('新增', style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary, fontWeight: AppTypography.weightBold)),
       ),
     );
   }
@@ -179,6 +174,7 @@ class _KitCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      color: AppColors.cardBackground,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -198,11 +194,11 @@ class _KitCard extends StatelessWidget {
                           fit: BoxFit.cover,
                         )
                       : Container(
-                          color: Colors.grey.shade200,
+                          color: AppColors.buttonBackground,
                           child: Icon(
                             Icons.image_not_supported_outlined,
                             size: 32,
-                            color: Colors.grey.shade400,
+                            color: AppColors.textMuted,
                           ),
                         ),
                 ),
@@ -214,50 +210,38 @@ class _KitCard extends StatelessWidget {
                   children: [
                     Text(
                       kit.modelNumber,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                      style: AppTypography.subtitle.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: AppTypography.weightBold,
                       ),
                     ),
                     if (kit.purchaseDate != null) ...[
                       const SizedBox(height: 4),
                       Text(
                         '購買：${dateFormat.format(kit.purchaseDate!)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                        ),
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                       ),
                     ],
                     if (kit.assemblyStartDate != null)
                       Text(
                         '組裝：${dateFormat.format(kit.assemblyStartDate!)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                        ),
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                       ),
                     if (kit.completionDate != null)
                       Text(
                         '完成：${dateFormat.format(kit.completionDate!)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade700,
-                        ),
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
                       ),
                     if (kit.photoPaths.length > 1)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Row(
                           children: [
-                            Icon(Icons.photo_library, size: 14, color: Colors.grey.shade600),
+                            Icon(Icons.photo_library, size: 14, color: AppColors.textMuted),
                             const SizedBox(width: 4),
                             Text(
                               '${kit.photoPaths.length} 張照片',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
+                              style: AppTypography.label.copyWith(color: AppColors.textMuted),
                             ),
                           ],
                         ),
@@ -270,13 +254,13 @@ class _KitCard extends StatelessWidget {
                   if (value == 'delete') onDelete();
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.delete_outline, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('刪除', style: TextStyle(color: Colors.red)),
+                        Icon(Icons.delete_outline, color: AppColors.error),
+                        const SizedBox(width: 8),
+                        Text('刪除', style: TextStyle(color: AppColors.error)),
                       ],
                     ),
                   ),

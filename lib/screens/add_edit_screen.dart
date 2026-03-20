@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../models/model_kit.dart';
 import '../services/storage_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
 class AddEditScreen extends StatefulWidget {
   final ModelKit? modelKit;
@@ -143,8 +145,11 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? '編輯記錄' : '新增記錄'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Text(
+          _isEditing ? '編輯記錄' : '新增記錄',
+          style: AppTypography.title.copyWith(color: AppColors.textPrimary),
+        ),
+        backgroundColor: AppColors.cardBackground,
         actions: [
           if (_isEditing)
             IconButton(
@@ -173,7 +178,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               },
             ),
             const SizedBox(height: 20),
-            const Text('購買日期', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text('購買日期', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _pickDate(context, (d) => _purchaseDate = d),
@@ -185,7 +190,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('組裝開始日期', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text('組裝開始日期', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _pickDate(context, (d) => _assemblyStartDate = d),
@@ -197,7 +202,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('完成日期', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text('完成日期', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _pickDate(context, (d) => _completionDate = d),
@@ -209,7 +214,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text('照片記錄', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text('照片記錄', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
             const SizedBox(height: 8),
             SizedBox(
               height: 100,
@@ -222,12 +227,12 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       width: 100,
                       margin: const EdgeInsets.only(right: 8),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
+                        color: AppColors.buttonBackground,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade400),
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: _saving
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                           : const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -260,10 +265,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
-                                color: Colors.black54,
+                                color: AppColors.textLabel,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.close, color: Colors.white, size: 18),
+                              child: const Icon(Icons.close, color: AppColors.textPrimary, size: 18),
                             ),
                           ),
                         ),
@@ -288,15 +293,16 @@ class _AddEditScreenState extends State<AddEditScreen> {
             FilledButton(
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _saving
                   ? const SizedBox(
                       height: 24,
                       width: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary),
                     )
-                  : Text(_isEditing ? '儲存' : '新增'),
+                  : Text(_isEditing ? '儲存' : '新增', style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary, fontWeight: AppTypography.weightBold)),
             ),
           ],
         ),
