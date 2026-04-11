@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:model_kit_collect/main.dart';
+import 'package:model_kit_collect/models/model_kit.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('ModelKit JSON can round-trip', () {
+    final original = ModelKit(
+      id: 'kit-001',
+      modelNumber: 'RG 1/144 RX-78-2',
+      purchaseDate: DateTime(2026, 4, 10),
+      assemblyStartDate: DateTime(2026, 4, 11),
+      completionDate: DateTime(2026, 4, 12),
+      photoPaths: const ['https://example.com/photo.jpg'],
+      notes: 'test note',
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final json = original.toJson();
+    final restored = ModelKit.fromJson(json);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(restored.id, original.id);
+    expect(restored.modelNumber, original.modelNumber);
+    expect(restored.purchaseDate, original.purchaseDate);
+    expect(restored.assemblyStartDate, original.assemblyStartDate);
+    expect(restored.completionDate, original.completionDate);
+    expect(restored.photoPaths, original.photoPaths);
+    expect(restored.notes, original.notes);
   });
 }

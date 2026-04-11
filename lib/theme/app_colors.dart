@@ -8,6 +8,8 @@ class AppColors {
   // === 主色調 ===
   static const Color primary = Color(0xFFFF6B00); // 主色（橘色）
   static const Color secondary = Color(0xFF007AFF); // 次要色（藍色）
+  static const Color accentBlue = Color(0xFF4FC3F7); // 電光藍（進度條、狀態）
+  static const Color copper = Color(0xFFD47A5A); // 銅色（badge、標籤）
   static const Color tertiary = Color(0xFFE5A102); // 第三色（金黃）
 
   // === 背景色 ===

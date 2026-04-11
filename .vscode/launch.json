@@ -43,7 +43,7 @@
       "request": "launch",
       "type": "dart",
       "flutterMode": "release",
-      "deviceId": "macos"
+      "deviceId": "00008140-000A48CA0A53001C"
     }
   ]
 }

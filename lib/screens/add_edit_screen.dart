@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../models/model_kit.dart';
+import '../services/network_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
@@ -23,6 +21,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   final _modelNumberController = TextEditingController();
   final _notesController = TextEditingController();
   final StorageService _storage = StorageService();
+  final NetworkService _networkService = NetworkService();
 
   DateTime? _purchaseDate;
   DateTime? _assemblyStartDate;
@@ -53,7 +52,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDate(BuildContext context, void Function(DateTime) setter) async {
+  Future<void> _pickDate(
+    BuildContext context,
+    void Function(DateTime) setter,
+  ) async {
     final initial = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -64,56 +66,15 @@ class _AddEditScreenState extends State<AddEditScreen> {
     if (picked != null) setState(() => setter(picked));
   }
 
-  Future<void> _takePhoto() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('拍照'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('從相簿選擇'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null) return;
-
-    final xFile = await picker.pickImage(source: source, imageQuality: 85);
-    if (xFile == null) return;
-
-    setState(() => _saving = true);
-    try {
-      final kitId = widget.modelKit?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-      final path = await _storage.savePhoto(File(xFile.path), kitId);
-      setState(() {
-        _photoPaths.add(path);
-        _saving = false;
-      });
-    } catch (_) {
-      setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _removePhoto(int index) async {
-    setState(() => _photoPaths.removeAt(index));
-  }
-
   Future<void> _save() async {
+    if (!await _ensureOnlineForAction(_isEditing ? '儲存修改' : '新增記錄')) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _saving = true);
     try {
-      final id = widget.modelKit?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+      final id =
+          widget.modelKit?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString();
       final kit = ModelKit(
         id: id,
         modelNumber: _modelNumberController.text.trim(),
@@ -121,22 +82,44 @@ class _AddEditScreenState extends State<AddEditScreen> {
         assemblyStartDate: _assemblyStartDate,
         completionDate: _completionDate,
         photoPaths: _photoPaths,
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
       );
 
-      List<ModelKit> kits = await _storage.loadModelKits();
-      final idx = kits.indexWhere((k) => k.id == id);
-      if (idx >= 0) {
-        kits[idx] = kit;
-      } else {
-        kits.add(kit);
-      }
-      await _storage.saveModelKits(kits);
+      await _storage.upsertModelKit(kit);
 
       if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('儲存失敗：${e.toString().split('\n').first}')),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<bool> _ensureOnlineForAction(String actionName) async {
+    final hasInternet = await _networkService.hasInternetAccess();
+    if (hasInternet) return true;
+    if (!mounted) return false;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('目前沒有網路，無法$actionName。')));
+    return false;
+  }
+
+  Widget _buildPhoto(String path) {
+    return Image.network(
+      path,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: AppColors.buttonBackground,
+        alignment: Alignment.center,
+        child: const Icon(Icons.broken_image, color: AppColors.textMuted),
+      ),
+    );
   }
 
   @override
@@ -146,7 +129,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _isEditing ? '編輯記錄' : '新增記錄',
+          _isEditing ? 'Edit Record' : 'Add Record',
           style: AppTypography.title.copyWith(color: AppColors.textPrimary),
         ),
         backgroundColor: AppColors.cardBackground,
@@ -166,124 +149,133 @@ class _AddEditScreenState extends State<AddEditScreen> {
             TextFormField(
               controller: _modelNumberController,
               decoration: const InputDecoration(
-                labelText: '模型編號 *',
-                hintText: '例如：RG 1/144 RX-78-2',
+                labelText: 'Model Number *',
+                hintText: 'e.g. RG 1/144 RX-78-2',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.tag),
               ),
               textCapitalization: TextCapitalization.characters,
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return '請輸入模型編號';
+                if (v == null || v.trim().isEmpty) {
+                  return 'Please enter model number';
+                }
                 return null;
               },
             ),
             const SizedBox(height: 20),
-            Text('購買日期', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
+            Text(
+              'Purchase Date',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: AppTypography.weightMedium,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _pickDate(context, (d) => _purchaseDate = d),
               icon: const Icon(Icons.calendar_today),
-              label: Text(_purchaseDate != null ? dateFormat.format(_purchaseDate!) : '選擇日期'),
+              label: Text(
+                _purchaseDate != null
+                    ? dateFormat.format(_purchaseDate!)
+                    : 'Select Date',
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
                 alignment: Alignment.centerLeft,
               ),
             ),
             const SizedBox(height: 16),
-            Text('組裝開始日期', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
+            Text(
+              'Assembly Start Date',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: AppTypography.weightMedium,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
-              onPressed: () => _pickDate(context, (d) => _assemblyStartDate = d),
+              onPressed: () =>
+                  _pickDate(context, (d) => _assemblyStartDate = d),
               icon: const Icon(Icons.build),
-              label: Text(_assemblyStartDate != null ? dateFormat.format(_assemblyStartDate!) : '選擇日期'),
+              label: Text(
+                _assemblyStartDate != null
+                    ? dateFormat.format(_assemblyStartDate!)
+                    : 'Select Date',
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
                 alignment: Alignment.centerLeft,
               ),
             ),
             const SizedBox(height: 16),
-            Text('完成日期', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
+            Text(
+              'Completion Date',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: AppTypography.weightMedium,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => _pickDate(context, (d) => _completionDate = d),
               icon: const Icon(Icons.check_circle_outline),
-              label: Text(_completionDate != null ? dateFormat.format(_completionDate!) : '選擇日期'),
+              label: Text(
+                _completionDate != null
+                    ? dateFormat.format(_completionDate!)
+                    : 'Select Date',
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
                 alignment: Alignment.centerLeft,
               ),
             ),
             const SizedBox(height: 24),
-            Text('照片記錄', style: AppTypography.bodySmall.copyWith(fontWeight: AppTypography.weightMedium, color: AppColors.textSecondary)),
+            Text(
+              'Photo',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: AppTypography.weightMedium,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 100,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  GestureDetector(
-                    onTap: _saving ? null : _takePhoto,
-                    child: Container(
-                      width: 100,
-                      margin: const EdgeInsets.only(right: 8),
+              child: _photoPaths.isEmpty
+                  ? Container(
                       decoration: BoxDecoration(
                         color: AppColors.buttonBackground,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: _saving
-                          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                          : const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_a_photo, size: 36),
-                                SizedBox(height: 4),
-                                Text('新增照片'),
-                              ],
-                            ),
-                    ),
-                  ),
-                  ...List.generate(_photoPaths.length, (i) {
-                    return Stack(
-                      children: [
-                        Container(
+                      alignment: Alignment.center,
+                      child: Text(
+                        '圖片將由系統後續補齊',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _photoPaths.length,
+                      itemBuilder: (context, i) {
+                        return Container(
                           width: 100,
                           margin: const EdgeInsets.only(right: 8),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(_photoPaths[i]),
-                              fit: BoxFit.cover,
-                            ),
+                            child: _buildPhoto(_photoPaths[i]),
                           ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 12,
-                          child: GestureDetector(
-                            onTap: () => _removePhoto(i),
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: AppColors.textLabel,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close, color: AppColors.textPrimary, size: 18),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                ],
-              ),
+                        );
+                      },
+                    ),
             ),
             const SizedBox(height: 24),
             TextFormField(
               controller: _notesController,
               decoration: const InputDecoration(
-                labelText: '備註',
-                hintText: '可選填',
+                labelText: 'Notes',
+                hintText: 'Optional',
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
@@ -300,9 +292,18 @@ class _AddEditScreenState extends State<AddEditScreen> {
                   ? const SizedBox(
                       height: 24,
                       width: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.textPrimary,
+                      ),
                     )
-                  : Text(_isEditing ? '儲存' : '新增', style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary, fontWeight: AppTypography.weightBold)),
+                  : Text(
+                      _isEditing ? 'Save' : 'Add',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: AppTypography.weightBold,
+                      ),
+                    ),
             ),
           ],
         ),
