@@ -6,6 +6,7 @@ class ModelKit {
   final DateTime? assemblyStartDate; // 組裝開始日期
   final DateTime? completionDate; // 完成日期
   final List<String> photoPaths; // 照片路徑列表
+  final List<String> tags; // 標籤
   final String? notes; // 備註
 
   const ModelKit({
@@ -15,8 +16,21 @@ class ModelKit {
     this.assemblyStartDate,
     this.completionDate,
     this.photoPaths = const [],
+    this.tags = const [],
     this.notes,
   });
+
+  static String normalizeTag(String tag) => tag.trim().toLowerCase();
+
+  static List<String> normalizeTags(List<String> tags) {
+    final normalized = <String>[];
+    for (final raw in tags) {
+      final tag = normalizeTag(raw);
+      if (tag.isEmpty || normalized.contains(tag)) continue;
+      normalized.add(tag);
+    }
+    return normalized;
+  }
 
   ModelKit copyWith({
     String? id,
@@ -25,6 +39,7 @@ class ModelKit {
     DateTime? assemblyStartDate,
     DateTime? completionDate,
     List<String>? photoPaths,
+    List<String>? tags,
     String? notes,
   }) {
     return ModelKit(
@@ -34,6 +49,7 @@ class ModelKit {
       assemblyStartDate: assemblyStartDate ?? this.assemblyStartDate,
       completionDate: completionDate ?? this.completionDate,
       photoPaths: photoPaths ?? this.photoPaths,
+      tags: tags != null ? normalizeTags(tags) : this.tags,
       notes: notes ?? this.notes,
     );
   }
@@ -45,6 +61,7 @@ class ModelKit {
         'assemblyStartDate': assemblyStartDate?.toIso8601String(),
         'completionDate': completionDate?.toIso8601String(),
         'photoPaths': photoPaths,
+        'tags': normalizeTags(tags),
         'notes': notes,
       };
 
@@ -64,6 +81,12 @@ class ModelKit {
                 ?.map((e) => e as String)
                 .toList() ??
             [],
+        tags: normalizeTags(
+          (json['tags'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
+        ),
         notes: json['notes'] as String?,
       );
 }

@@ -291,6 +291,9 @@ class _KitCard extends StatelessWidget {
         'Bought on ${DateFormat('yyyy/MM/dd').format(kit.purchaseDate!)}',
       );
     }
+    if (kit.tags.isNotEmpty) {
+      parts.add(kit.tags.map((tag) => '#$tag').join(' '));
+    }
     if (kit.notes != null && kit.notes!.isNotEmpty) {
       parts.add(kit.notes!);
     }
