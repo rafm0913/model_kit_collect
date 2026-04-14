@@ -74,7 +74,7 @@ class StorageService {
     return counts;
   }
 
-  /// 批次替換所有紀錄中的標籤（toTag 為 null 時等同刪除）
+  /// 批次替換所有收藏中的標籤（toTag 為 null 時等同刪除）
   Future<int> replaceTagInAllKits({
     required String fromTag,
     String? toTag,

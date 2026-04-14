@@ -146,7 +146,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
       await _loadTags();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已更新 $changed 筆記錄的標籤')),
+        SnackBar(content: Text('已更新 $changed 筆收藏的標籤')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -163,7 +163,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('刪除標籤'),
-        content: Text('確定要刪除標籤「#$tag」嗎？\n此操作會套用到所有紀錄。'),
+        content: Text('確定要刪除標籤「#$tag」嗎？\n此操作會套用到所有收藏。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -187,7 +187,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
       await _loadTags();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已從 $changed 筆記錄移除標籤')),
+        SnackBar(content: Text('已從 $changed 筆收藏移除標籤')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -240,7 +240,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
                   style: AppTypography.body.copyWith(color: AppColors.textPrimary),
                 ),
                 subtitle: Text(
-                  '使用於 ${item.count} 筆紀錄',
+                  '使用於 ${item.count} 筆收藏',
                   style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
                 ),
                 trailing: Row(

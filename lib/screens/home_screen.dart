@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (!hasInternet) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('目前沒有網路，無法編輯記錄。')),
+        const SnackBar(content: Text('目前沒有網路，無法編輯收藏。')),
       );
       return;
     }
@@ -69,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (!hasInternet) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('目前沒有網路，無法刪除記錄。')),
+        const SnackBar(content: Text('目前沒有網路，無法刪除收藏。')),
       );
       return;
     }
@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('確認刪除'),
-        content: Text('確定要刪除「${kit.modelNumber}」的記錄嗎？'),
+        content: Text('確定要刪除「${kit.name}」這筆收藏嗎？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -110,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '庫存清單',
+          '收藏清單',
           style: AppTypography.title.copyWith(color: AppColors.textPrimary),
         ),
         backgroundColor: AppColors.cardBackground,
@@ -131,14 +131,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '尚無記錄',
+                    '尚無收藏',
                     style: AppTypography.subtitle.copyWith(
                       color: AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '點擊右下角 + 新增第一筆模型',
+                    '點擊右下角 + 新增第一筆收藏',
                     style: AppTypography.bodySmall.copyWith(
                       color: AppColors.textMuted,
                     ),
@@ -173,13 +173,20 @@ class _VaultHeader extends StatelessWidget {
 
   const _VaultHeader({required this.kits});
 
+  String _normalizeStatus(String status) {
+    final value = status.trim();
+    if (value == '新品') return '全新';
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final activeStatuses = {'組裝中', '上色中', '已組裝', '已上色'};
     final activeCount = kits
-        .where((k) => k.assemblyStartDate != null || k.completionDate != null)
+        .where((k) => activeStatuses.contains(_normalizeStatus(k.displayStatus)))
         .length;
-    final archivedCount = kits
-        .where((k) => k.assemblyStartDate == null && k.completionDate == null)
+    final completedCount = kits
+        .where((k) => _normalizeStatus(k.displayStatus) == '完成')
         .length;
 
     return Padding(
@@ -188,7 +195,7 @@ class _VaultHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'REGISTRY INDEX',
+            'COLLECTION INDEX',
             style: AppTypography.caption.copyWith(
               color: AppColors.copper,
               letterSpacing: 2,
@@ -196,7 +203,7 @@ class _VaultHeader extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'VAULT COLLECTION',
+            'MODEL COLLECTION',
             style: AppTypography.headline.copyWith(
               color: AppColors.textPrimary,
               fontSize: 24,
@@ -210,7 +217,7 @@ class _VaultHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'ACTIVE BUILDS',
+                      'IN PROGRESS',
                       style: AppTypography.caption.copyWith(
                         color: AppColors.textMuted,
                       ),
@@ -230,13 +237,13 @@ class _VaultHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'ARCHIVED',
+                      'COMPLETED',
                       style: AppTypography.caption.copyWith(
                         color: AppColors.textMuted,
                       ),
                     ),
                     Text(
-                      archivedCount.toString().padLeft(2, '0'),
+                      completedCount.toString().padLeft(2, '0'),
                       style: AppTypography.title.copyWith(
                         color: AppColors.textPrimary,
                         fontSize: 28,
@@ -265,34 +272,28 @@ class _KitCard extends StatelessWidget {
   });
 
   String _getBadge() {
-    final parts = kit.modelNumber.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty) return 'KIT';
-    final first = parts.first.toUpperCase();
-    if (first.length <= 4 && RegExp(r'^[A-Z0-9]+$').hasMatch(first)) {
-      return first;
-    }
-    return 'KIT';
-  }
-
-  ({int percent, String status, bool isCompleted}) _getProgress() {
-    if (kit.completionDate != null) {
-      return (percent: 100, status: 'COMPLETED', isCompleted: true);
-    }
-    if (kit.assemblyStartDate != null) {
-      return (percent: 65, status: '65%', isCompleted: false);
-    }
-    return (percent: 0, status: 'QUEUE', isCompleted: false);
+    final grade = kit.displayGrade.trim();
+    return grade.isEmpty ? 'KIT' : grade.toUpperCase();
   }
 
   String _getSubtitle() {
     final parts = <String>[];
+    if (kit.quantity != null) {
+      parts.add('x${kit.quantity}');
+    }
+    if (kit.displayManufacturer.isNotEmpty) {
+      parts.add(kit.displayManufacturer);
+    }
+    if (kit.mobileSuitName.isNotEmpty) {
+      parts.add(kit.mobileSuitName);
+    }
+    if (kit.scale.isNotEmpty) {
+      parts.add(kit.scale);
+    }
     if (kit.purchaseDate != null) {
       parts.add(
-        'Bought on ${DateFormat('yyyy/MM/dd').format(kit.purchaseDate!)}',
+        '購入 ${DateFormat('yyyy/MM/dd').format(kit.purchaseDate!)}',
       );
-    }
-    if (kit.tags.isNotEmpty) {
-      parts.add(kit.tags.map((tag) => '#$tag').join(' '));
     }
     if (kit.notes != null && kit.notes!.isNotEmpty) {
       parts.add(kit.notes!);
@@ -302,8 +303,8 @@ class _KitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _getProgress();
     final subtitle = _getSubtitle();
+    final statusText = kit.displayStatus;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -345,7 +346,7 @@ class _KitCard extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  kit.modelNumber.toUpperCase(),
+                                  kit.name,
                                   style: AppTypography.subtitle.copyWith(
                                     color: AppColors.textPrimary,
                                     fontWeight: AppTypography.weightBold,
@@ -368,27 +369,35 @@ class _KitCard extends StatelessWidget {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                progress.status,
-                                style: AppTypography.label.copyWith(
-                                  color: progress.isCompleted
-                                      ? AppColors.accentBlue
-                                      : AppColors.textMuted,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: 60,
-                                child: LinearProgressIndicator(
-                                  value: progress.percent / 100,
-                                  backgroundColor: AppColors.buttonBackground,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    progress.isCompleted || progress.percent > 0
+                                decoration: BoxDecoration(
+                                  color: AppColors.buttonBackground,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Text(
+                                  statusText,
+                                  style: AppTypography.label.copyWith(
+                                    color: statusText == '完成'
                                         ? AppColors.accentBlue
-                                        : AppColors.textMuted,
+                                        : AppColors.textSecondary,
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              if (kit.statusLogs.isNotEmpty)
+                                Text(
+                                  DateFormat('MM/dd HH:mm').format(
+                                    kit.statusLogs.last.changedAt,
+                                  ),
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
                             ],
                           ),
                         ],

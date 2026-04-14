@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '模型收藏記錄',
+      title: '模型收藏',
       theme: ThemeData(
         colorScheme: ColorScheme.dark(
           primary: AppColors.primary,

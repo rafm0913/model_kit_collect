@@ -11,8 +11,8 @@ import 'statistics_screen.dart';
 import 'settings_screen.dart';
 
 /// 主畫面殼層，含底部導覽列
-/// 左至右：庫存清單、統計、系統設定
-/// 新增按鈕在右下角（僅庫存清單頁顯示）
+/// 左至右：收藏清單、統計、系統設定
+/// 新增按鈕在右下角（僅收藏清單頁顯示）
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -41,7 +41,7 @@ class _MainShellState extends State<MainShell> {
     if (!mounted) return;
     if (!hasInternet) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('目前沒有網路，無法新增記錄。')),
+        const SnackBar(content: Text('目前沒有網路，無法新增收藏。')),
       );
       return;
     }
