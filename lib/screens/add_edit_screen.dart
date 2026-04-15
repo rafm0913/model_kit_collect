@@ -6,6 +6,7 @@ import '../services/network_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
+import 'settings_screen.dart';
 
 class AddEditScreen extends StatefulWidget {
   final ModelKit? modelKit;
@@ -36,6 +37,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   late String _grade;
   late String _status;
   late List<StatusLog> _statusLogs;
+  late List<String> _tags;
   late bool _isEditMode;
   bool _isScaleApplicable = true;
   DateTime? _purchaseDate;
@@ -75,7 +77,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final raw = (rawValue ?? '').trim();
     final other = (existingOther ?? '').trim();
     if (raw.isEmpty) {
-      return (selected: fallbackOption, otherText: other.isEmpty ? null : other);
+      return (
+        selected: fallbackOption,
+        otherText: other.isEmpty ? null : other,
+      );
     }
     if (options.contains(raw)) {
       return (selected: raw, otherText: other.isEmpty ? null : other);
@@ -98,6 +103,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _grade = ModelKit.gradeOptions.first;
     _status = ModelKit.statusOptions.first;
     _statusLogs = [];
+    _tags = [];
     _isScaleApplicable = true;
   }
 
@@ -125,6 +131,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _grade = gradeResolved.selected;
     _status = statusResolved.selected;
     _statusLogs = List<StatusLog>.from(kit.statusLogs);
+    _tags = ModelKit.normalizeTags(kit.tags);
 
     _nameController.text = kit.name;
     _quantityController.text = kit.quantity?.toString() ?? '';
@@ -132,8 +139,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final scaleNumber = _extractScaleNumber(kit.scale);
     _isScaleApplicable = scaleNumber.isNotEmpty;
     _scaleController.text = scaleNumber;
-    _purchaseAmountController.text =
-        kit.purchaseAmount != null ? kit.purchaseAmount!.toStringAsFixed(0) : '';
+    _purchaseAmountController.text = kit.purchaseAmount != null
+        ? kit.purchaseAmount!.toStringAsFixed(0)
+        : '';
     _purchaseSourceController.text = kit.purchaseSource;
     _notesController.text = kit.notes ?? '';
     _manufacturerOtherController.text = manufacturerResolved.otherText ?? '';
@@ -204,6 +212,40 @@ class _AddEditScreenState extends State<AddEditScreen> {
     );
   }
 
+  Widget _buildViewTagField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '標籤',
+            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 6),
+          if (_tags.isEmpty)
+            Text(
+              '未填寫',
+              style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _tags
+                  .map(
+                    (tag) => Chip(
+                      visualDensity: VisualDensity.compact,
+                      label: Text('#$tag'),
+                    ),
+                  )
+                  .toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildViewModeBody() {
     final dateFormat = DateFormat('yyyy/MM/dd');
     final logs = List<StatusLog>.from(_statusLogs)
@@ -222,30 +264,57 @@ class _AddEditScreenState extends State<AddEditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildViewField(label: '名稱', value: _nameController.text.trim(), maxLines: 2),
-              _buildViewField(label: '數量', value: _quantityController.text.trim()),
+              _buildViewField(
+                label: '名稱',
+                value: _nameController.text.trim(),
+                maxLines: 2,
+              ),
+              _buildViewField(
+                label: '數量',
+                value: _quantityController.text.trim(),
+              ),
               _buildViewField(
                 label: '製造商',
-                value: _isManufacturerOther && _manufacturerOtherController.text.trim().isNotEmpty
+                value:
+                    _isManufacturerOther &&
+                        _manufacturerOtherController.text.trim().isNotEmpty
                     ? _manufacturerOtherController.text.trim()
                     : _manufacturer,
               ),
               _buildViewField(
                 label: '模型等級',
-                value: _isGradeOther && _gradeOtherController.text.trim().isNotEmpty
+                value:
+                    _isGradeOther &&
+                        _gradeOtherController.text.trim().isNotEmpty
                     ? _gradeOtherController.text.trim()
                     : _grade,
               ),
-              _buildViewField(label: '機體名稱', value: _mobileSuitNameController.text.trim()),
+              _buildViewField(
+                label: '機體名稱',
+                value: _mobileSuitNameController.text.trim(),
+              ),
               _buildViewField(label: '比例', value: _currentScaleText()),
               _buildViewField(label: '狀態', value: _currentStatusText()),
-              _buildViewField(label: '購買金額', value: _purchaseAmountController.text.trim()),
-              _buildViewField(label: '購買來源', value: _purchaseSourceController.text.trim()),
+              _buildViewField(
+                label: '購買金額',
+                value: _purchaseAmountController.text.trim(),
+              ),
+              _buildViewField(
+                label: '購買來源',
+                value: _purchaseSourceController.text.trim(),
+              ),
               _buildViewField(
                 label: '購買日期',
-                value: _purchaseDate == null ? '' : dateFormat.format(_purchaseDate!),
+                value: _purchaseDate == null
+                    ? ''
+                    : dateFormat.format(_purchaseDate!),
               ),
-              _buildViewField(label: '備註', value: _notesController.text.trim(), maxLines: 6),
+              _buildViewTagField(),
+              _buildViewField(
+                label: '備註',
+                value: _notesController.text.trim(),
+                maxLines: 6,
+              ),
             ],
           ),
         ),
@@ -271,7 +340,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
               if (logs.isEmpty)
                 Text(
                   '目前尚無狀態紀錄',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
                 )
               else
                 ...logs.map(
@@ -324,7 +395,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
-    if (!await _ensureOnlineForAction(_hasExistingKit ? '儲存修改' : '新增收藏')) return;
+    if (!await _ensureOnlineForAction(_hasExistingKit ? '儲存修改' : '新增收藏')) {
+      return;
+    }
     if (!mounted) return;
     if (!_formKey.currentState!.validate()) return;
 
@@ -339,19 +412,25 @@ class _AddEditScreenState extends State<AddEditScreen> {
       final quantity = _quantityController.text.trim().isEmpty
           ? null
           : int.tryParse(_quantityController.text.trim());
-      final scale = _isScaleApplicable ? '1/${_scaleController.text.trim()}' : '';
+      final scale = _isScaleApplicable
+          ? '1/${_scaleController.text.trim()}'
+          : '';
 
       final existingLogs = List<StatusLog>.from(_statusLogs);
-      final isStatusChanged = widget.modelKit == null ||
+      final isStatusChanged =
+          widget.modelKit == null ||
           widget.modelKit!.status != _status ||
-          (widget.modelKit!.statusOther ?? '') != _statusOtherController.text.trim();
+          (widget.modelKit!.statusOther ?? '') !=
+              _statusOtherController.text.trim();
       final incomingStatusOther = _statusOtherController.text.trim().isEmpty
           ? null
           : _statusOtherController.text.trim();
-      final shouldAppendStatusLog = isStatusChanged &&
+      final shouldAppendStatusLog =
+          isStatusChanged &&
           (existingLogs.isEmpty ||
               existingLogs.last.status != _status ||
-              (existingLogs.last.statusOther ?? '') != (incomingStatusOther ?? ''));
+              (existingLogs.last.statusOther ?? '') !=
+                  (incomingStatusOther ?? ''));
       final updatedLogs = shouldAppendStatusLog
           ? [
               ...existingLogs,
@@ -387,6 +466,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
+        tags: _tags,
         statusLogs: updatedLogs,
       );
 
@@ -448,7 +528,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
             Expanded(
               child: Text(
                 '不適用比例',
-                style: AppTypography.body.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.body.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
             TextButton.icon(
@@ -540,9 +622,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               child: OutlinedButton.icon(
                 onPressed: onPick,
                 icon: const Icon(Icons.calendar_today),
-                label: Text(
-                  value != null ? dateFormat.format(value) : '選擇日期',
-                ),
+                label: Text(value != null ? dateFormat.format(value) : '選擇日期'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
                   alignment: Alignment.centerLeft,
@@ -566,9 +646,11 @@ class _AddEditScreenState extends State<AddEditScreen> {
   Widget _buildStatusLogSection() {
     final logs = List<StatusLog>.from(_statusLogs)
       ..sort((a, b) => b.changedAt.compareTo(a.changedAt));
-    final isPendingNewLog = !_saving &&
+    final isPendingNewLog =
+        !_saving &&
         (_status != (widget.modelKit?.status ?? '') ||
-            _statusOtherController.text.trim() != (widget.modelKit?.statusOther ?? ''));
+            _statusOtherController.text.trim() !=
+                (widget.modelKit?.statusOther ?? ''));
     final dateTimeFormat = DateFormat('yyyy/MM/dd HH:mm');
 
     return Container(
@@ -609,40 +691,48 @@ class _AddEditScreenState extends State<AddEditScreen> {
           if (logs.isEmpty)
             Text(
               '目前尚無狀態紀錄',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
             )
           else
-            ...logs.take(8).map(
-              (log) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${dateTimeFormat.format(log.changedAt)}  ${log.displayStatus}',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+            ...logs
+                .take(8)
+                .map(
+                  (log) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${dateTimeFormat.format(log.changedAt)}  ${log.displayStatus}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
-                      ),
+                        IconButton(
+                          iconSize: 18,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: '編輯',
+                          onPressed: () =>
+                              _openStatusLogEditor(existingLog: log),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          iconSize: 18,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: '刪除',
+                          onPressed: () => _removeStatusLog(log),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      iconSize: 18,
-                      visualDensity: VisualDensity.compact,
-                      tooltip: '編輯',
-                      onPressed: () => _openStatusLogEditor(existingLog: log),
-                      icon: const Icon(Icons.edit_outlined),
-                    ),
-                    IconButton(
-                      iconSize: 18,
-                      visualDensity: VisualDensity.compact,
-                      tooltip: '刪除',
-                      onPressed: () => _removeStatusLog(log),
-                      icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
           if (logs.length > 8)
             Text(
               '... 尚有 ${logs.length - 8} 筆較早紀錄',
@@ -652,11 +742,79 @@ class _AddEditScreenState extends State<AddEditScreen> {
             const SizedBox(height: 8),
             Text(
               '儲存後將新增狀態：${_isStatusOther && _statusOtherController.text.trim().isNotEmpty ? _statusOtherController.text.trim() : _status}',
-              style: AppTypography.caption.copyWith(color: AppColors.accentBlue),
+              style: AppTypography.caption.copyWith(
+                color: AppColors.accentBlue,
+              ),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  void _removeTag(String tag) {
+    setState(() {
+      _tags = _tags.where((t) => t != tag).toList();
+    });
+  }
+
+  Future<void> _openTagSelector() async {
+    final selectedTags = await Navigator.push<List<String>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TagManagementScreen(
+          mode: TagManagementMode.select,
+          initialSelectedTags: _tags,
+        ),
+      ),
+    );
+    if (!mounted || selectedTags == null) return;
+    setState(() {
+      _tags = ModelKit.normalizeTags(selectedTags);
+    });
+  }
+
+  Widget _buildTagSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '標籤',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: AppTypography.weightMedium,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            OutlinedButton.icon(
+              onPressed: _openTagSelector,
+              icon: const Icon(Icons.settings_outlined, size: 16),
+              label: const Text('管理標籤'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_tags.isEmpty)
+          Text(
+            '目前沒有標籤，可點「管理標籤」來選擇或新增',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _tags
+                .map(
+                  (tag) => InputChip(
+                    label: Text('#$tag'),
+                    onDeleted: () => _removeTag(tag),
+                  ),
+                )
+                .toList(),
+          ),
+      ],
     );
   }
 
@@ -685,7 +843,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   void _removeStatusLog(StatusLog target) {
     setState(() {
-      _statusLogs = _statusLogs.where((log) => !identical(log, target)).toList();
+      _statusLogs = _statusLogs
+          .where((log) => !identical(log, target))
+          .toList();
     });
   }
 
@@ -742,7 +902,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: ModelKit.statusOptions
-                        .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                        .map(
+                          (item) =>
+                              DropdownMenuItem(value: item, child: Text(item)),
+                        )
                         .toList(),
                     onChanged: (value) {
                       if (value == null) return;
@@ -823,9 +986,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
             behavior: HitTestBehavior.opaque,
             onTap: () => FocusScope.of(context).unfocus(),
             child: Text(
-              _hasExistingKit
-                  ? (_isEditMode ? '編輯收藏' : '收藏詳情')
-                  : '新增收藏',
+              _hasExistingKit ? (_isEditMode ? '編輯收藏' : '收藏詳情') : '新增收藏',
               style: AppTypography.title.copyWith(color: AppColors.textPrimary),
             ),
           ),
@@ -857,217 +1018,238 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 child: Form(
                   key: _formKey,
                   child: ListView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                16 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '名稱 *',
-                hintText: '給自己辨認用，例如：生日禮物那盒',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.bookmark_outline),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return '請輸入名稱';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _quantityController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '數量',
-                hintText: '只能輸入數字',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.format_list_numbered),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return null;
-                if (!RegExp(r'^\d+$').hasMatch(v.trim())) {
-                  return '數量只能輸入數字';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            DropdownButtonFormField<String>(
-              initialValue: _safeDropdownValue(
-                current: _manufacturer,
-                options: ModelKit.manufacturerOptions,
-                fallback: ModelKit.otherOption,
-              ),
-              decoration: const InputDecoration(
-                labelText: '製造商',
-                border: OutlineInputBorder(),
-              ),
-              items: ModelKit.manufacturerOptions
-                  .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _manufacturer = value);
-              },
-            ),
-            _buildOtherField(
-              isVisible: _isManufacturerOther,
-              controller: _manufacturerOtherController,
-              label: '製造商補充（可選）',
-              hint: '可留空',
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _safeDropdownValue(
-                current: _grade,
-                options: ModelKit.gradeOptions,
-                fallback: ModelKit.otherOption,
-              ),
-              decoration: const InputDecoration(
-                labelText: '模型等級',
-                border: OutlineInputBorder(),
-              ),
-              items: ModelKit.gradeOptions
-                  .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _grade = value);
-              },
-            ),
-            _buildOtherField(
-              isVisible: _isGradeOther,
-              controller: _gradeOtherController,
-              label: '模型等級補充（可選）',
-              hint: '可留空',
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _mobileSuitNameController,
-              decoration: const InputDecoration(
-                labelText: '機體名稱',
-                hintText: '例如：RX-78-2 GUNDAM',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '比例',
-              style: AppTypography.bodySmall.copyWith(
-                fontWeight: AppTypography.weightMedium,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildScaleInput(),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _safeDropdownValue(
-                current: _status,
-                options: ModelKit.statusOptions,
-                fallback: '其他',
-              ),
-              decoration: const InputDecoration(
-                labelText: '狀態',
-                border: OutlineInputBorder(),
-              ),
-              items: ModelKit.statusOptions
-                  .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _status = value);
-              },
-            ),
-            _buildOtherField(
-              isVisible: _isStatusOther,
-              controller: _statusOtherController,
-              label: '狀態補充（可選）',
-              hint: '可留空',
-            ),
-            const SizedBox(height: 12),
-            _buildStatusLogSection(),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _purchaseAmountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: '購買金額',
-                hintText: '例如：1200',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.attach_money),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return null;
-                if (double.tryParse(v.trim()) == null) {
-                  return '請輸入數字';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _purchaseSourceController,
-              decoration: const InputDecoration(
-                labelText: '購買來源',
-                hintText: '例如：網購、實體店',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildDatePicker(
-              title: '購買日期',
-              value: _purchaseDate,
-              onPick: () => _pickDate(context, (d) => _purchaseDate = d),
-              onClear: () {
-                FocusScope.of(context).unfocus();
-                setState(() => _purchaseDate = null);
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _notesController,
-              decoration: const InputDecoration(
-                labelText: '備註',
-                hintText: '可留空',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 32),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.textPrimary,
-                      ),
-                    )
-                  : Text(
-                      _hasExistingKit ? '儲存收藏' : '新增收藏',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: AppTypography.weightBold,
-                      ),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      16 + MediaQuery.of(context).viewInsets.bottom,
                     ),
-            ),
-              ],
-            ),
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: '名稱 *',
+                          hintText: '給自己辨認用，例如：生日禮物那盒',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.bookmark_outline),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return '請輸入名稱';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _quantityController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: '數量',
+                          hintText: '只能輸入數字',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.format_list_numbered),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return null;
+                          if (!RegExp(r'^\d+$').hasMatch(v.trim())) {
+                            return '數量只能輸入數字';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      DropdownButtonFormField<String>(
+                        initialValue: _safeDropdownValue(
+                          current: _manufacturer,
+                          options: ModelKit.manufacturerOptions,
+                          fallback: ModelKit.otherOption,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: '製造商',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: ModelKit.manufacturerOptions
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _manufacturer = value);
+                        },
+                      ),
+                      _buildOtherField(
+                        isVisible: _isManufacturerOther,
+                        controller: _manufacturerOtherController,
+                        label: '製造商補充（可選）',
+                        hint: '可留空',
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _safeDropdownValue(
+                          current: _grade,
+                          options: ModelKit.gradeOptions,
+                          fallback: ModelKit.otherOption,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: '模型等級',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: ModelKit.gradeOptions
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _grade = value);
+                        },
+                      ),
+                      _buildOtherField(
+                        isVisible: _isGradeOther,
+                        controller: _gradeOtherController,
+                        label: '模型等級補充（可選）',
+                        hint: '可留空',
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _mobileSuitNameController,
+                        decoration: const InputDecoration(
+                          labelText: '機體名稱',
+                          hintText: '例如：RX-78-2 GUNDAM',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '比例',
+                        style: AppTypography.bodySmall.copyWith(
+                          fontWeight: AppTypography.weightMedium,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildScaleInput(),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _safeDropdownValue(
+                          current: _status,
+                          options: ModelKit.statusOptions,
+                          fallback: '其他',
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: '狀態',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: ModelKit.statusOptions
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _status = value);
+                        },
+                      ),
+                      _buildOtherField(
+                        isVisible: _isStatusOther,
+                        controller: _statusOtherController,
+                        label: '狀態補充（可選）',
+                        hint: '可留空',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildStatusLogSection(),
+                      const SizedBox(height: 16),
+                      _buildTagSection(),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _purchaseAmountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: '購買金額',
+                          hintText: '例如：1200',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.attach_money),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return null;
+                          if (double.tryParse(v.trim()) == null) {
+                            return '請輸入數字';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _purchaseSourceController,
+                        decoration: const InputDecoration(
+                          labelText: '購買來源',
+                          hintText: '例如：網購、實體店',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildDatePicker(
+                        title: '購買日期',
+                        value: _purchaseDate,
+                        onPick: () =>
+                            _pickDate(context, (d) => _purchaseDate = d),
+                        onClear: () {
+                          FocusScope.of(context).unfocus();
+                          setState(() => _purchaseDate = null);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _notesController,
+                        decoration: const InputDecoration(
+                          labelText: '備註',
+                          hintText: '可留空',
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 32),
+                      FilledButton(
+                        onPressed: _saving ? null : _save,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.textPrimary,
+                                ),
+                              )
+                            : Text(
+                                _hasExistingKit ? '儲存收藏' : '新增收藏',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: AppTypography.weightBold,
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
       ),
