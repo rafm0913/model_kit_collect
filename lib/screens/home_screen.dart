@@ -20,12 +20,23 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storage = StorageService();
   final NetworkService _networkService = NetworkService();
+  final TextEditingController _searchController = TextEditingController();
   List<ModelKit> _kits = [];
   bool _loading = true;
+  bool _isSearchFilterMode = false;
+  String _searchQuery = '';
+  String? _selectedStatus;
+  String? _selectedManufacturer;
+  String? _selectedTag;
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() {
+      final nextQuery = _searchController.text.trim();
+      if (_searchQuery == nextQuery) return;
+      setState(() => _searchQuery = nextQuery);
+    });
     _loadKits();
     widget.refreshTrigger?.addListener(_loadKits);
   }
@@ -33,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     widget.refreshTrigger?.removeListener(_loadKits);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -40,11 +52,186 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() => _loading = true);
     final kits = await _storage.loadModelKits();
+    final statuses = kits.map((k) => k.displayStatus).toSet();
+    final manufacturers = kits
+        .map((k) => k.displayManufacturer)
+        .where((item) => item.trim().isNotEmpty)
+        .toSet();
+    final tags = <String>{};
+    for (final kit in kits) {
+      tags.addAll(kit.tags);
+    }
     if (!mounted) return;
     setState(() {
       _kits = kits;
+      if (_selectedStatus != null && !statuses.contains(_selectedStatus)) {
+        _selectedStatus = null;
+      }
+      if (_selectedManufacturer != null &&
+          !manufacturers.contains(_selectedManufacturer)) {
+        _selectedManufacturer = null;
+      }
+      if (_selectedTag != null && !tags.contains(_selectedTag)) {
+        _selectedTag = null;
+      }
       _loading = false;
     });
+  }
+
+  List<ModelKit> _filteredKits() {
+    final query = _searchQuery.toLowerCase();
+    return _kits.where((kit) {
+      final matchesQuery = query.isEmpty || (() {
+        final tagsText = kit.tags.join(' ');
+        final target =
+            '${kit.name} ${kit.mobileSuitName} ${kit.displayManufacturer} ${kit.displayGrade} ${kit.displayStatus} ${kit.notes ?? ''} $tagsText'
+                .toLowerCase();
+        return target.contains(query);
+      })();
+      final matchesStatus =
+          _selectedStatus == null || kit.displayStatus == _selectedStatus;
+      final matchesManufacturer = _selectedManufacturer == null ||
+          kit.displayManufacturer == _selectedManufacturer;
+      final matchesTag =
+          _selectedTag == null || kit.tags.contains(_selectedTag);
+      return matchesQuery &&
+          matchesStatus &&
+          matchesManufacturer &&
+          matchesTag;
+    }).toList();
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    _searchQuery = '';
+    _selectedStatus = null;
+    _selectedManufacturer = null;
+    _selectedTag = null;
+  }
+
+  void _toggleSearchFilterMode() {
+    if (_isSearchFilterMode) {
+      _clearFilters();
+    }
+    setState(() => _isSearchFilterMode = !_isSearchFilterMode);
+  }
+
+  Widget _buildFilterSection({
+    required String title,
+    required List<String> options,
+    required String? selectedValue,
+    required ValueChanged<String?> onSelected,
+    bool prefixHash = false,
+  }) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: options
+                .map(
+                  (value) => ChoiceChip(
+                    label: Text(prefixHash ? '#$value' : value),
+                    selected: selectedValue == value,
+                    onSelected: (_) => onSelected(selectedValue == value ? null : value),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters() {
+    final statusOptions = _kits.map((k) => k.displayStatus).toSet().toList()..sort();
+    final manufacturerOptions = _kits
+        .map((k) => k.displayManufacturer)
+        .where((item) => item.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final tagOptions = <String>{};
+    for (final kit in _kits) {
+      tagOptions.addAll(kit.tags);
+    }
+    final sortedTagOptions = tagOptions.toList()..sort();
+    final hasActiveFilters = _searchQuery.isNotEmpty ||
+        _selectedStatus != null ||
+        _selectedManufacturer != null ||
+        _selectedTag != null;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: '搜尋收藏',
+                hintText: '名稱、機體、製造商、標籤',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清除搜尋',
+                        onPressed: () => _searchController.clear(),
+                        icon: const Icon(Icons.clear),
+                      ),
+              ),
+            ),
+            _buildFilterSection(
+              title: '狀態',
+              options: statusOptions,
+              selectedValue: _selectedStatus,
+              onSelected: (value) => setState(() => _selectedStatus = value),
+            ),
+            _buildFilterSection(
+              title: '製造商',
+              options: manufacturerOptions,
+              selectedValue: _selectedManufacturer,
+              onSelected: (value) => setState(() => _selectedManufacturer = value),
+            ),
+            _buildFilterSection(
+              title: '標籤',
+              options: sortedTagOptions,
+              selectedValue: _selectedTag,
+              onSelected: (value) => setState(() => _selectedTag = value),
+              prefixHash: true,
+            ),
+            if (hasActiveFilters) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => setState(_clearFilters),
+                  icon: const Icon(Icons.filter_alt_off_outlined),
+                  label: const Text('清除條件'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _navigateToEdit(ModelKit kit) async {
@@ -107,6 +294,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredKits = _filteredKits();
+    final displayedKits = _isSearchFilterMode ? filteredKits : _kits;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -114,6 +303,15 @@ class _HomeScreenState extends State<HomeScreen> {
           style: AppTypography.title.copyWith(color: AppColors.textPrimary),
         ),
         backgroundColor: AppColors.cardBackground,
+        actions: [
+          IconButton(
+            tooltip: _isSearchFilterMode ? '結束搜尋/篩選' : '搜尋與篩選',
+            onPressed: _toggleSearchFilterMode,
+            icon: Icon(
+              _isSearchFilterMode ? Icons.close : Icons.manage_search_outlined,
+            ),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(
@@ -148,20 +346,36 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           : CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: _VaultHeader(kits: _kits)),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final kit = _kits[index];
-                      return _KitCard(
-                        kit: kit,
-                        onTap: () => _navigateToEdit(kit),
-                        onDelete: () => _deleteKit(kit),
-                      );
-                    }, childCount: _kits.length),
+                SliverToBoxAdapter(child: _VaultHeader(kits: displayedKits)),
+                if (_isSearchFilterMode)
+                  SliverToBoxAdapter(child: _buildSearchAndFilters()),
+                if (_isSearchFilterMode && displayedKits.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                      child: Text(
+                        '找不到符合條件的收藏，試著調整搜尋或篩選條件。',
+                        style: AppTypography.body.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final kit = displayedKits[index];
+                        return _KitCard(
+                          kit: kit,
+                          onTap: () => _navigateToEdit(kit),
+                          onDelete: () => _deleteKit(kit),
+                        );
+                      }, childCount: displayedKits.length),
+                    ),
                   ),
-                ),
               ],
             ),
     );
