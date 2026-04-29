@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../models/model_kit.dart';
+import '../services/ai_recognition_service.dart';
 import '../services/network_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
@@ -32,6 +34,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   final StorageService _storage = StorageService();
   final NetworkService _networkService = NetworkService();
+  final AIRecognitionService _aiRecognitionService = const AIRecognitionService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   late String _manufacturer;
   late String _grade;
@@ -40,6 +44,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   late List<String> _tags;
   late bool _isEditMode;
   bool _isScaleApplicable = true;
+  bool _recognizing = false;
   DateTime? _purchaseDate;
   bool _saving = false;
 
@@ -105,6 +110,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _statusLogs = [];
     _tags = [];
     _isScaleApplicable = true;
+    _quantityController.text = '1';
   }
 
   void _applyKitToForm(ModelKit kit) {
@@ -134,7 +140,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _tags = ModelKit.normalizeTags(kit.tags);
 
     _nameController.text = kit.name;
-    _quantityController.text = kit.quantity?.toString() ?? '';
+    _quantityController.text = (kit.quantity == null || kit.quantity! < 1)
+        ? '1'
+        : kit.quantity!.toString();
     _mobileSuitNameController.text = kit.mobileSuitName;
     final scaleNumber = _extractScaleNumber(kit.scale);
     _isScaleApplicable = scaleNumber.isNotEmpty;
@@ -174,6 +182,137 @@ class _AddEditScreenState extends State<AddEditScreen> {
       return;
     }
     setState(() => _isEditMode = true);
+  }
+
+  Future<void> _recognizeFromBoxImage() async {
+    FocusScope.of(context).unfocus();
+    final hasInternet = await _networkService.hasInternetAccess();
+    if (!mounted) return;
+    if (!hasInternet) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前沒有網路，無法使用 AI 辨識。')));
+      return;
+    }
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('拍照搜尋'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('從相簿選擇'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 2000,
+      maxHeight: 2000,
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+
+    setState(() => _recognizing = true);
+    try {
+      final result = await _aiRecognitionService.recognizeFromImagePath(picked.path);
+      if (!mounted) return;
+      final changed = _applyAIResult(result);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            changed == 0 ? '未找到可回填資訊' : '已回填 $changed 個欄位，請確認後再儲存',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('搜尋失敗：${e.toString().split('\n').first}')),
+      );
+    } finally {
+      if (mounted) setState(() => _recognizing = false);
+    }
+  }
+
+  int _applyAIResult(AIRecognitionResult result) {
+    var changed = 0;
+    setState(() {
+      if (result.manufacturer != null && result.manufacturer!.isNotEmpty) {
+        final manufacturer = result.manufacturer!;
+        if (ModelKit.manufacturerOptions.contains(manufacturer)) {
+          if (_manufacturer != manufacturer) changed++;
+          _manufacturer = manufacturer;
+          if (manufacturer != ModelKit.otherOption &&
+              _manufacturerOtherController.text.isNotEmpty) {
+            _manufacturerOtherController.clear();
+          }
+        } else {
+          if (_manufacturer != ModelKit.otherOption ||
+              _manufacturerOtherController.text.trim() != manufacturer) {
+            changed++;
+          }
+          _manufacturer = ModelKit.otherOption;
+          _manufacturerOtherController.text = manufacturer;
+        }
+      }
+
+      if (result.grade != null && result.grade!.isNotEmpty) {
+        final grade = result.grade!;
+        if (ModelKit.gradeOptions.contains(grade)) {
+          if (_grade != grade) changed++;
+          _grade = grade;
+          if (grade != ModelKit.otherOption && _gradeOtherController.text.isNotEmpty) {
+            _gradeOtherController.clear();
+          }
+        } else {
+          if (_grade != ModelKit.otherOption || _gradeOtherController.text.trim() != grade) {
+            changed++;
+          }
+          _grade = ModelKit.otherOption;
+          _gradeOtherController.text = grade;
+        }
+      }
+
+      if (result.mobileSuitName != null && result.mobileSuitName!.isNotEmpty) {
+        if (_mobileSuitNameController.text.trim() != result.mobileSuitName) {
+          changed++;
+          _mobileSuitNameController.text = result.mobileSuitName!;
+        }
+      }
+
+      if (result.scale != null && result.scale!.isNotEmpty) {
+        final scaleNumber = _extractScaleNumber(result.scale!);
+        if (scaleNumber.isNotEmpty) {
+          if (!_isScaleApplicable || _scaleController.text.trim() != scaleNumber) {
+            changed++;
+          }
+          _isScaleApplicable = true;
+          _scaleController.text = scaleNumber;
+        }
+      }
+
+      if (_nameController.text.trim().isEmpty &&
+          _mobileSuitNameController.text.trim().isNotEmpty &&
+          _grade.trim().isNotEmpty) {
+        _nameController.text = '${_grade.trim()} ${_mobileSuitNameController.text.trim()}';
+        changed++;
+      }
+    });
+    return changed;
   }
 
   void _cancelEditMode() {
@@ -409,9 +548,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
       final purchaseAmount = _purchaseAmountController.text.trim().isEmpty
           ? null
           : double.tryParse(_purchaseAmountController.text.trim());
-      final quantity = _quantityController.text.trim().isEmpty
-          ? null
-          : int.tryParse(_quantityController.text.trim());
+      final parsedQuantity = int.tryParse(_quantityController.text.trim());
+      final quantity = (parsedQuantity == null || parsedQuantity < 1)
+          ? 1
+          : parsedQuantity;
       final scale = _isScaleApplicable
           ? '1/${_scaleController.text.trim()}'
           : '';
@@ -1057,8 +1197,22 @@ class _AddEditScreenState extends State<AddEditScreen> {
                           if (!RegExp(r'^\d+$').hasMatch(v.trim())) {
                             return '數量只能輸入數字';
                           }
+                          final parsed = int.tryParse(v.trim());
+                          if (parsed == null || parsed < 1) return '數量不能小於 1';
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _recognizing ? null : _recognizeFromBoxImage,
+                        icon: _recognizing
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.search_outlined),
+                        label: Text(_recognizing ? '搜尋中...' : '拍照搜尋（自動帶入）'),
                       ),
                       const SizedBox(height: 20),
                       DropdownButtonFormField<String>(
