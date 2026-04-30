@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image/image.dart' as img;
 
 class AIRecognitionConfidence {
   final double manufacturer;
@@ -86,6 +88,12 @@ class AIRecognitionResult {
 class AIRecognitionService {
   final String endpoint;
 
+  /// 送辨識 API 前將最長邊限制在此像素內，以縮短上傳與後端解碼時間。
+  static const int _maxRecognizeLongEdge = 2048;
+
+  /// 縮圖後改存 JPEG 的品質（僅在實際縮圖時使用）。
+  static const int _recognizeJpegQuality = 88;
+
   const AIRecognitionService({
     this.endpoint = 'https://api.dellspot.org/api/v1/ai/recognize-box',
   });
@@ -105,15 +113,36 @@ class AIRecognitionService {
     return idToken;
   }
 
+  Uint8List _prepareImageBytesForRecognition(Uint8List raw) {
+    final decoded = img.decodeImage(raw);
+    if (decoded == null) return raw;
+
+    final w = decoded.width;
+    final h = decoded.height;
+    final longEdge = w > h ? w : h;
+    if (longEdge <= _maxRecognizeLongEdge) return raw;
+
+    final resized = w >= h
+        ? img.copyResize(
+            decoded,
+            width: _maxRecognizeLongEdge,
+            interpolation: img.Interpolation.linear,
+          )
+        : img.copyResize(
+            decoded,
+            height: _maxRecognizeLongEdge,
+            interpolation: img.Interpolation.linear,
+          );
+
+    return img.encodeJpg(resized, quality: _recognizeJpegQuality);
+  }
+
   Future<AIRecognitionResult> recognizeFromImagePath(String imagePath) async {
     final bearerToken = await _getFirebaseBearerToken();
 
-    final header = decodeJwtHeader(bearerToken);
-    print('jwt header: $header');
-    print('alg: ${header['alg']}');
-
     final file = File(imagePath);
-    final imageBytes = await file.readAsBytes();
+    final rawBytes = await file.readAsBytes();
+    final imageBytes = _prepareImageBytesForRecognition(rawBytes);
     final imageB64 = base64Encode(imageBytes);
 
     final payload = jsonEncode({
