@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../config/developer_config.dart';
 import '../models/model_kit.dart';
+import '../services/developer_settings_service.dart';
 import '../services/network_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
@@ -49,6 +51,10 @@ class SettingsScreen extends StatelessWidget {
               );
             },
           ),
+          if (kEnableDeveloperSettings) ...[
+            const Divider(height: 24),
+            const DeveloperTestModeSettingsTile(),
+          ],
           const Divider(height: 24),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.primary),
@@ -420,6 +426,67 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// 設定內開關：開啟後 AI 辨識會顯示耗時與可複製的原始回應。
+class DeveloperTestModeSettingsTile extends StatefulWidget {
+  const DeveloperTestModeSettingsTile({super.key});
+
+  @override
+  State<DeveloperTestModeSettingsTile> createState() =>
+      _DeveloperTestModeSettingsTileState();
+}
+
+class _DeveloperTestModeSettingsTileState
+    extends State<DeveloperTestModeSettingsTile> {
+  final DeveloperSettingsService _developerSettings =
+      DeveloperSettingsService();
+  bool? _enabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final v = await _developerSettings.isTestModeEnabled();
+    if (mounted) setState(() => _enabled = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_enabled == null) {
+      return ListTile(
+        leading: const Icon(Icons.bug_report_outlined, color: AppColors.primary),
+        title: Text(
+          '開發者測試模式',
+          style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+        ),
+        subtitle: Text(
+          '載入中…',
+          style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+        ),
+      );
+    }
+
+    return SwitchListTile(
+      secondary: const Icon(Icons.bug_report_outlined, color: AppColors.primary),
+      title: Text(
+        '開發者測試模式',
+        style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+      ),
+      subtitle: Text(
+        'AI 辨識時顯示耗時與完整 API 回應（可複製）',
+        style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+      ),
+      value: _enabled!,
+      onChanged: (v) async {
+        setState(() => _enabled = v);
+        await _developerSettings.setTestModeEnabled(v);
+      },
     );
   }
 }

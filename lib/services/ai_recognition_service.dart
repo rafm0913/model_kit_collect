@@ -85,6 +85,72 @@ class AIRecognitionResult {
   }
 }
 
+class AIRecognitionBBox {
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  const AIRecognitionBBox({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  factory AIRecognitionBBox.fromJson(Map<String, dynamic> json) {
+    double normalize(dynamic raw) {
+      if (raw is num) return raw.toDouble();
+      if (raw is String) return double.tryParse(raw.trim()) ?? 0;
+      return 0;
+    }
+
+    return AIRecognitionBBox(
+      left: normalize(json['left']),
+      top: normalize(json['top']),
+      right: normalize(json['right']),
+      bottom: normalize(json['bottom']),
+    );
+  }
+}
+
+class AIRecognitionDetection {
+  final AIRecognitionResult result;
+  final AIRecognitionBBox? bbox;
+
+  const AIRecognitionDetection({
+    required this.result,
+    this.bbox,
+  });
+
+  factory AIRecognitionDetection.fromJson(Map<String, dynamic> json) {
+    final bboxRaw = json['bbox'];
+    return AIRecognitionDetection(
+      result: AIRecognitionResult.fromJson(json),
+      bbox: bboxRaw is Map<String, dynamic>
+          ? AIRecognitionBBox.fromJson(bboxRaw)
+          : null,
+    );
+  }
+}
+
+/// 單次辨識請求的完整資訊（供開發者模式顯示耗時與原始 HTTP 內容）。
+class AIRecognitionCallDetail {
+  final List<AIRecognitionDetection> detections;
+  final String rawHttpBody;
+  final Duration elapsed;
+
+  const AIRecognitionCallDetail({
+    required this.detections,
+    required this.rawHttpBody,
+    required this.elapsed,
+  });
+
+  /// 方便既有流程沿用：若有多筆，預設取第一筆。
+  AIRecognitionResult? get primaryResult =>
+      detections.isEmpty ? null : detections.first.result;
+}
+
 class AIRecognitionService {
   final String endpoint;
 
@@ -137,7 +203,10 @@ class AIRecognitionService {
     return img.encodeJpg(resized, quality: _recognizeJpegQuality);
   }
 
-  Future<AIRecognitionResult> recognizeFromImagePath(String imagePath) async {
+  Future<AIRecognitionCallDetail> recognizeFromImagePath(
+    String imagePath,
+  ) async {
+    final sw = Stopwatch()..start();
     final bearerToken = await _getFirebaseBearerToken();
 
     final file = File(imagePath);
@@ -177,7 +246,37 @@ class AIRecognitionService {
           ? (decoded['result'] as Map<String, dynamic>)
           : decoded;
 
-      return AIRecognitionResult.fromJson(payloadMap);
+      List<AIRecognitionDetection> parseDetections(dynamic raw) {
+        if (raw is List) {
+          return raw
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .map(AIRecognitionDetection.fromJson)
+              .toList();
+        }
+        return const [];
+      }
+
+      final detectionsRaw = payloadMap['detections'];
+      final detections = (detectionsRaw != null)
+          ? parseDetections(detectionsRaw)
+          : [
+              AIRecognitionDetection(
+                result: AIRecognitionResult.fromJson(payloadMap),
+                bbox: payloadMap['bbox'] is Map<String, dynamic>
+                    ? AIRecognitionBBox.fromJson(
+                        payloadMap['bbox'] as Map<String, dynamic>,
+                      )
+                    : null,
+              ),
+            ];
+
+      sw.stop();
+      return AIRecognitionCallDetail(
+        detections: detections,
+        rawHttpBody: responseText,
+        elapsed: sw.elapsed,
+      );
     } finally {
       httpClient.close();
     }

@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../config/developer_config.dart';
 import '../models/model_kit.dart';
 import '../services/ai_recognition_service.dart';
+import '../services/developer_settings_service.dart';
 import '../services/network_service.dart';
 import '../services/storage_service.dart';
 import '../theme/app_colors.dart';
@@ -227,10 +232,32 @@ class _AddEditScreenState extends State<AddEditScreen> {
     if (!mounted) return;
 
     setState(() => _recognizing = true);
+    final devTestMode = kEnableDeveloperSettings &&
+        await DeveloperSettingsService().isTestModeEnabled();
     try {
-      final result = await _aiRecognitionService.recognizeFromImagePath(picked.path);
+      final detail =
+          await _aiRecognitionService.recognizeFromImagePath(picked.path);
       if (!mounted) return;
-      final changed = _applyAIResult(result);
+      final seconds = detail.elapsed.inMicroseconds / 1000000.0;
+      if (devTestMode) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('辨識 API 耗時 ${seconds.toStringAsFixed(2)} 秒'),
+          ),
+        );
+      }
+
+      final selected = await _selectDetectionIfNeeded(detail.detections);
+      if (!mounted) return;
+      if (selected == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('未選擇要回填的盒子')),
+        );
+        return;
+      }
+
+      final changed = _applyAIResult(selected.result);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -238,14 +265,135 @@ class _AddEditScreenState extends State<AddEditScreen> {
           ),
         ),
       );
+      if (devTestMode && mounted) {
+        await _showDeveloperApiResponseDialog(
+          titleSuffix: '（${seconds.toStringAsFixed(2)} 秒）',
+          body: _prettyJsonForDev(detail.rawHttpBody),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('搜尋失敗：${e.toString().split('\n').first}')),
       );
+      if (devTestMode && mounted) {
+        await _showDeveloperApiResponseDialog(
+          titleSuffix: '（錯誤）',
+          body: e.toString(),
+        );
+      }
     } finally {
       if (mounted) setState(() => _recognizing = false);
     }
+  }
+
+  Future<AIRecognitionDetection?> _selectDetectionIfNeeded(
+    List<AIRecognitionDetection> detections,
+  ) async {
+    if (!mounted) return null;
+    if (detections.isEmpty) return null;
+    if (detections.length == 1) return detections.first;
+
+    return showDialog<AIRecognitionDetection>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('找到 ${detections.length} 個盒子'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: detections.length,
+            separatorBuilder: (_, __) => const Divider(height: 12),
+            itemBuilder: (ctx, index) {
+              final d = detections[index];
+              final r = d.result;
+              final title = [
+                if ((r.manufacturer ?? '').trim().isNotEmpty)
+                  (r.manufacturer ?? '').trim(),
+                if ((r.grade ?? '').trim().isNotEmpty) (r.grade ?? '').trim(),
+                if ((r.mobileSuitName ?? '').trim().isNotEmpty)
+                  (r.mobileSuitName ?? '').trim(),
+              ].join(' ');
+              final subtitle = [
+                if ((r.scale ?? '').trim().isNotEmpty) '比例：${r.scale!.trim()}',
+                if (r.confidence != null)
+                  '信心：製造商 ${(r.confidence!.manufacturer * 100).toStringAsFixed(0)}%、機體 ${(r.confidence!.mobileSuitName * 100).toStringAsFixed(0)}%',
+              ].join('  ');
+
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(title.isEmpty ? '未辨識到標題' : title),
+                subtitle: subtitle.isEmpty ? null : Text(subtitle),
+                onTap: () => Navigator.pop(ctx, d),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _prettyJsonForDev(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      return const JsonEncoder.withIndent('  ').convert(decoded);
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  Future<void> _showDeveloperApiResponseDialog({
+    required String titleSuffix,
+    required String body,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('辨識 API $titleSuffix'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: MediaQuery.sizeOf(dialogContext).height * 0.5,
+            child: Scrollbar(
+              child: SingleChildScrollView(
+                child: SelectionArea(
+                  child: Text(
+                    body,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: body));
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('已複製到剪貼簿')),
+                );
+              },
+              child: const Text('複製全部'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   int _applyAIResult(AIRecognitionResult result) {
